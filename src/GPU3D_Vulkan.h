@@ -40,11 +40,12 @@ public:
     virtual void RenderFrame() override;
     virtual u32* GetLine(int line) override;
 private:
-	struct VulkanState
-	{
-		vk::UniqueInstance Instance;
-		vk::PhysicalDevice PhysicalDevice;
-		vk::UniqueDevice Device;
-	} Vk;
+    struct VulkanState
+    {
+        vk::UniqueInstance Instance;
+        vk::PhysicalDevice PhysicalDevice;
+        vk::UniqueDevice Device;
+        vk::Queue Queue;
+    } Vk;
 };
 }

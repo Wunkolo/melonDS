@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include "types.h"
+
 #define VULKAN_HPP_NO_EXCEPTIONS
 
 #define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC 1
@@ -25,5 +27,15 @@
 
 namespace Vulkan
 {
-    
+enum class VendorID : u32
+{
+    AMD      = 0x1002,
+    ImgTec   = 0x1010,
+    Nvidia   = 0x10DE,
+    ARM      = 0x13B5,
+    Qualcomm = 0x5143,
+    Intel    = 0x8086
+};
+
+const char* VendorName(VendorID Vendor);
 }

@@ -19,6 +19,8 @@
 #include "GPU3D_Vulkan.h"
 
 #include <array>
+#include <algorithm>
+
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_core.h>
 
@@ -27,6 +29,8 @@ namespace GPU3D
     VulkanRenderer::VulkanRenderer()
         : Renderer3D(false)
     {
+
+        //// Create Instance
         vk::InstanceCreateInfo InstanceCreateInfo = {};
 
         vk::ApplicationInfo ApplicationInfo = {};
@@ -41,8 +45,7 @@ namespace GPU3D
         // Instance validation layers
         static const char* ValidationLayers[] = {
         #ifndef NDEBUG
-            "VK_LAYER_KHRONOS_validation",
-            "VK_LAYER_LUNARG_api_dump"
+            "VK_LAYER_KHRONOS_validation"
         #endif
         };
         InstanceCreateInfo.enabledLayerCount = std::extent_v<decltype(ValidationLayers)>;
@@ -66,7 +69,110 @@ namespace GPU3D
 
         VULKAN_HPP_DEFAULT_DISPATCHER.init(Vk.Instance.get());
         
-        puts("Vulkan CTOR");
+        //// Pick physical device
+        // Todo: Make this something the user selects
+        std::vector<vk::PhysicalDevice> PhysicalDevices = {};
+
+        if (
+            auto EnumerateResult = Vk.Instance->enumeratePhysicalDevices();
+            EnumerateResult.result == vk::Result::eSuccess
+        )
+        {
+            PhysicalDevices = std::move(EnumerateResult.value);
+        }
+        else
+        {
+            // Failed to enumerate physical devices
+        }
+
+        // Partition the Physical device array as much as possible to pick the best devices
+        auto CurPivot = PhysicalDevices.end();
+
+        // Discrete GPUs
+        CurPivot = std::stable_partition(
+            PhysicalDevices.begin(), CurPivot,
+            [](const vk::PhysicalDevice& CurrentDevice) -> bool
+            {
+                const auto DeviceProperties = CurrentDevice.getProperties();
+                return DeviceProperties.deviceType == vk::PhysicalDeviceType::eDiscreteGpu;
+            }
+        );
+
+        // Supports extended image formats for storage-images
+        // Mostly for R8_UINT and R8_UNORM and such
+        CurPivot = std::stable_partition(
+            PhysicalDevices.begin(), CurPivot,
+            [](const vk::PhysicalDevice& CurrentDevice) -> bool
+            {
+                const auto DeviceFeatures = CurrentDevice.getFeatures();
+                return DeviceFeatures.shaderStorageImageExtendedFormats == true;
+            }
+        );
+
+        // At this point, the devices are now sorted from best to worst based on our criteria above
+        Vk.PhysicalDevice = PhysicalDevices[0];
+
+        //// Create device
+        vk::DeviceCreateInfo DeviceInfo = {};
+
+        // Device Layers
+        DeviceInfo.enabledLayerCount = 0;
+        DeviceInfo.ppEnabledLayerNames = nullptr;
+
+        // Device Extensions
+        DeviceInfo.enabledExtensionCount = 0;
+        DeviceInfo.ppEnabledExtensionNames = nullptr;
+
+        /// Queue allocation
+        // We just want 1 queue for everything for now
+
+        vk::DeviceQueueCreateInfo QueueInfo = {};
+
+        QueueInfo.queueCount = 1;
+        static constexpr float QueuePriorityMax = 1.0f; // Highest priority
+        QueueInfo.pQueuePriorities = &QueuePriorityMax;
+
+        // On all platforms, this is the "generic" queue that supports all
+        // graphics/compute/transfer operations
+        QueueInfo.queueFamilyIndex = 0;
+
+        DeviceInfo.queueCreateInfoCount = 1;
+        DeviceInfo.pQueueCreateInfos = &QueueInfo;
+
+        if (
+            auto DeviceResult = Vk.PhysicalDevice.createDeviceUnique(DeviceInfo);
+            DeviceResult.result == vk::Result::eSuccess
+        )
+        {
+            Vk.Device = std::move(DeviceResult.value);
+        }
+        else
+        {
+            // Error creating Logical device
+        }
+
+        Vk.Queue = Vk.Device->getQueue(0, 0);
+
+        const vk::PhysicalDeviceProperties DeviceProperties = Vk.PhysicalDevice.getProperties();
+        printf(
+            "Vulkan Context created:\n"
+            "\tDevice: %.256s\n"
+            "\tType: %.64s\n"
+            "\tID: %08X\n"
+            "\tVendor: %s\n"
+            "\tDriver: %u.%u.%u\n"
+            "\tAPI: %u.%u.%u\n",
+            DeviceProperties.deviceName.data(),
+            vk::to_string(DeviceProperties.deviceType).c_str(),
+            DeviceProperties.deviceID,
+            Vulkan::VendorName(static_cast<Vulkan::VendorID>(DeviceProperties.vendorID)),
+            VK_VERSION_MAJOR(DeviceProperties.driverVersion),
+            VK_VERSION_MINOR(DeviceProperties.driverVersion),
+            VK_VERSION_PATCH(DeviceProperties.driverVersion),
+            VK_VERSION_MAJOR(DeviceProperties.apiVersion),
+            VK_VERSION_MINOR(DeviceProperties.apiVersion),
+            VK_VERSION_PATCH(DeviceProperties.apiVersion)
+        );
     }
 
     VulkanRenderer::~VulkanRenderer()
