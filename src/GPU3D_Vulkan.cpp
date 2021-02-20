@@ -438,6 +438,112 @@ namespace GPU3D
             return;
         }
 
+        // Transition to write
+        VkState.CommandBuffer->pipelineBarrier(
+            vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eTransfer,
+            vk::DependencyFlagBits::eByRegion,
+            {},
+            {},
+            {
+                vk::ImageMemoryBarrier(
+                    vk::AccessFlags(),
+                    vk::AccessFlagBits::eTransferWrite,
+                    vk::ImageLayout::eUndefined, vk::ImageLayout::eGeneral,
+                    VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+                    VkState.FrameColorImage.get(),
+                    vk::ImageSubresourceRange(
+                        vk::ImageAspectFlagBits::eColor,
+                        0, VK_REMAINING_MIP_LEVELS,
+                        0, VK_REMAINING_ARRAY_LAYERS
+                    )
+                )
+            }
+        );
+
+        // Clear framebuffer
+        vk::ClearColorValue ClearColor = {};
+        {
+            const u32 ClearR = (RenderClearAttr1 >>  0) & 0x1F;
+            const u32 ClearG = (RenderClearAttr1 >>  5) & 0x1F;
+            const u32 ClearB = (RenderClearAttr1 >> 10) & 0x1F;
+            const u32 ClearA = (RenderClearAttr1 >> 16) & 0x1F;
+            ClearColor.float32[0] = ClearR / float(31);
+            ClearColor.float32[1] = ClearG / float(31);
+            ClearColor.float32[2] = ClearB / float(31);
+            ClearColor.float32[3] = ClearA / float(31);
+        }
+
+        VkState.CommandBuffer->clearColorImage(
+            VkState.FrameColorImage.get(),
+            vk::ImageLayout::eGeneral,
+            ClearColor,
+            {
+                vk::ImageSubresourceRange(
+                    vk::ImageAspectFlagBits::eColor,
+                    0, VK_REMAINING_MIP_LEVELS,
+                    0, VK_REMAINING_ARRAY_LAYERS
+                )
+            }
+        );
+
+        // Transition to read
+        VkState.CommandBuffer->pipelineBarrier(
+            vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer,
+            vk::DependencyFlagBits::eByRegion,
+            {},
+            {},
+            {
+                vk::ImageMemoryBarrier(
+                    vk::AccessFlagBits::eTransferWrite,
+                    vk::AccessFlagBits::eTransferRead,
+                    vk::ImageLayout::eGeneral, vk::ImageLayout::eTransferSrcOptimal,
+                    VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+                    VkState.FrameColorImage.get(),
+                    vk::ImageSubresourceRange(
+                        vk::ImageAspectFlagBits::eColor,
+                        0, VK_REMAINING_MIP_LEVELS,
+                        0, VK_REMAINING_ARRAY_LAYERS
+                    )
+                )
+            }
+        );
+
+        // Upload to staging buffer
+        VkState.CommandBuffer->copyImageToBuffer(
+            VkState.FrameColorImage.get(), vk::ImageLayout::eTransferSrcOptimal,
+            VkState.StagingBuffer.get(),
+            {
+                vk::BufferImageCopy(
+                    0, 256, 192,
+                    vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
+                    vk::Offset3D(),vk::Extent3D(256, 192, 1)
+                )
+            }
+        );
+
+
+        // Ensure all writes finished before host reads
+        VkState.CommandBuffer->pipelineBarrier(
+            vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eHost,
+            vk::DependencyFlagBits::eByRegion,
+            {},
+            {},
+            {
+                vk::ImageMemoryBarrier(
+                    vk::AccessFlagBits::eTransferWrite,
+                    vk::AccessFlagBits::eHostRead,
+                    vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eTransferSrcOptimal,
+                    VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+                    VkState.FrameColorImage.get(),
+                    vk::ImageSubresourceRange(
+                        vk::ImageAspectFlagBits::eColor,
+                        0, VK_REMAINING_MIP_LEVELS,
+                        0, VK_REMAINING_ARRAY_LAYERS
+                    )
+                )
+            }
+        );
+
         if (VkState.CommandBuffer->end() != vk::Result::eSuccess)
         {
             // Error ending command buffer recording
@@ -479,6 +585,15 @@ namespace GPU3D
 
     u32* VulkanRenderer::GetLine(int line)
     {
-        return reinterpret_cast<u32*>(VkState.MappedStagingBuffer) + 256 * line;
+        auto row = reinterpret_cast<u32*>(VkState.MappedStagingBuffer) + 256 * line;
+        u64* ptr = (u64*)row;
+        for (int i = 0; i < 256; i += 2)
+        {
+            u64 rgb = *ptr & 0x00FCFCFC00FCFCFC;
+            u64 a = *ptr & 0xF8000000F8000000;
+
+            *ptr++ = (rgb >> 2) | (a >> 3);
+        }
+        return row;
     }
 }
