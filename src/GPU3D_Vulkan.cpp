@@ -153,6 +153,24 @@ namespace GPU3D
 
         VkContext.Queue = VkContext.Device->getQueue(0, 0);
 
+        //// Allocate command pool
+        vk::CommandPoolCreateInfo CommandPoolInfo = {};
+        CommandPoolInfo.queueFamilyIndex = 0;
+        // We want to be able to recycle the command buffer, so we want to be able to reset them
+        CommandPoolInfo.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
+
+        if(
+            auto CommandPoolResult = VkContext.Device->createCommandPoolUnique(CommandPoolInfo);
+            CommandPoolResult.result == vk::Result::eSuccess
+        )
+        {
+            VkContext.CommandPool = std::move(CommandPoolResult.value);
+        }
+        else
+        {
+            // Error allocating command pool
+        }
+
         const vk::PhysicalDeviceProperties DeviceProperties = VkContext.PhysicalDevice.getProperties();
         printf(
             "Vulkan Context created:\n"
@@ -182,6 +200,24 @@ namespace GPU3D
 
     bool VulkanRenderer::Init()
     {
+        //// Allocate command buffer
+        vk::CommandBufferAllocateInfo CommandBufferInfo = {};
+        CommandBufferInfo.commandPool = VkContext.CommandPool.get();
+        CommandBufferInfo.commandBufferCount = 1;
+        CommandBufferInfo.level = vk::CommandBufferLevel::ePrimary;
+
+        if(
+            auto CommandBufferResult = VkContext.Device->allocateCommandBuffersUnique(CommandBufferInfo);
+            CommandBufferResult.result == vk::Result::eSuccess
+        )
+        {
+            VkState.CommandBuffer = std::move(CommandBufferResult.value[0]);
+        }
+        else
+        {
+            // Error allocating command buffer
+        }
+
         //// Create staging buffer
         {
             vk::BufferCreateInfo StagingBufferInfo = {};
@@ -375,7 +411,7 @@ namespace GPU3D
 
     void VulkanRenderer::RenderFrame()
     {
-
+        VkState.CommandBuffer->reset(vk::CommandBufferResetFlagBits::eReleaseResources);
     }
 
     u32* VulkanRenderer::GetLine(int line)

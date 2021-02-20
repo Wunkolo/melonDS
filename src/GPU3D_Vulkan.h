@@ -48,10 +48,13 @@ private:
         vk::PhysicalDevice PhysicalDevice;
         vk::UniqueDevice Device;
         vk::Queue Queue;
+        vk::UniqueCommandPool CommandPool;
     } VkContext;
 
     struct VulkanState
     {
+        vk::UniqueCommandBuffer CommandBuffer;
+
         static constexpr size_t StagingBufferSize = 256 * 192 * sizeof(uint32_t);
         vk::UniqueDeviceMemory StagingBufferMemory;
         vk::UniqueBuffer StagingBuffer;
