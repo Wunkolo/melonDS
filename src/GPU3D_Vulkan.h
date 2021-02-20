@@ -29,7 +29,7 @@ class VulkanRenderer : public Renderer3D
 {
 public:
     VulkanRenderer();
-    virtual ~VulkanRenderer() override {};
+    virtual ~VulkanRenderer() override;
     virtual bool Init() override;
     virtual void DeInit() override;
     virtual void Reset() override;
@@ -40,5 +40,11 @@ public:
     virtual void RenderFrame() override;
     virtual u32* GetLine(int line) override;
 private:
+	struct VulkanState
+	{
+		vk::UniqueInstance Instance;
+		vk::PhysicalDevice PhysicalDevice;
+		vk::UniqueDevice Device;
+	} Vk;
 };
 }

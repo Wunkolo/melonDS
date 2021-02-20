@@ -19,9 +19,48 @@
 #include "GPU3D_Vulkan.h"
 
 #include <array>
+#include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan_core.h>
 
 namespace GPU3D
 {
+	VulkanRenderer::VulkanRenderer()
+		: Renderer3D(false)
+	{
+		vk::InstanceCreateInfo InstanceCreateInfo = {};
+
+		vk::ApplicationInfo ApplicationInfo = {};
+		ApplicationInfo.pApplicationName = "melonDS " MELONDS_VERSION;
+		ApplicationInfo.applicationVersion = VK_MAKE_VERSION(0, 0, 0);
+		ApplicationInfo.pEngineName = "melonDS " MELONDS_VERSION;
+		ApplicationInfo.engineVersion = VK_MAKE_VERSION(0, 0, 0);
+		ApplicationInfo.apiVersion = VK_VERSION_1_1;
+
+		InstanceCreateInfo.pApplicationInfo = &ApplicationInfo;
+
+		InstanceCreateInfo.enabledExtensionCount = 0;
+		InstanceCreateInfo.ppEnabledExtensionNames = nullptr;
+
+		InstanceCreateInfo.enabledLayerCount = 0;
+		InstanceCreateInfo.ppEnabledExtensionNames = nullptr;
+
+		if (
+			auto InstanceResult = vk::createInstanceUnique(InstanceCreateInfo);
+			InstanceResult.result == vk::Result::eSuccess
+		)
+		{
+			Vk.Instance = std::move(InstanceResult.value);
+		}
+		else
+		{
+			// Failed to create instance
+		}
+	}
+
+	VulkanRenderer::~VulkanRenderer()
+	{
+	}
+
     bool VulkanRenderer::Init()
     {
         return true;
