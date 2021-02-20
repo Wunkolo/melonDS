@@ -200,6 +200,17 @@ namespace GPU3D
 
     bool VulkanRenderer::Init()
     {
+        //// Allocate fence
+        vk::FenceCreateInfo FenceInfo = {};
+
+        if(
+            auto FenceResult = VkContext.Device->createFenceUnique(FenceInfo);
+            FenceResult.result == vk::Result::eSuccess
+        )
+        {
+            VkState.Fence = std::move(FenceResult.value);
+        }
+
         //// Allocate command buffer
         vk::CommandBufferAllocateInfo CommandBufferInfo = {};
         CommandBufferInfo.commandPool = VkContext.CommandPool.get();
@@ -412,6 +423,58 @@ namespace GPU3D
     void VulkanRenderer::RenderFrame()
     {
         VkState.CommandBuffer->reset(vk::CommandBufferResetFlagBits::eReleaseResources);
+
+        vk::CommandBufferBeginInfo BeginInfo = {};
+        BeginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
+        if(
+            auto BeginResult = VkState.CommandBuffer->begin(BeginInfo);
+            BeginResult == vk::Result::eSuccess
+        )
+        {
+        }
+        else
+        {
+            // Failed to begin command buffer recording
+            return;
+        }
+
+        if (VkState.CommandBuffer->end() != vk::Result::eSuccess)
+        {
+            // Error ending command buffer recording
+            return;
+        }
+
+        // Submit command buffer
+        vk::SubmitInfo SubmitInfo = {};
+        SubmitInfo.commandBufferCount = 1;
+        SubmitInfo.pCommandBuffers = &VkState.CommandBuffer.get();
+
+        // Reset fence
+        if(VkContext.Device->resetFences({VkState.Fence.get()}) != vk::Result::eSuccess)
+        {
+            // Error resetting fence
+            return;
+        }
+
+        // Submit command buffer
+        if(
+            auto SubmitResult = VkContext.Queue.submit({SubmitInfo}, VkState.Fence.get());
+            SubmitResult == vk::Result::eSuccess
+        )
+        {
+        }
+        else
+        {
+            // Error submitting fence
+            return;
+        }
+
+        // Wait for fence to be signaled+
+        if (VkContext.Device->waitForFences({VkState.Fence.get()}, true, ~0ull) != vk::Result::eSuccess)
+        {
+            // Error waiting for fences
+            return;
+        }
     }
 
     u32* VulkanRenderer::GetLine(int line)

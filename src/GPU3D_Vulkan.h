@@ -53,6 +53,7 @@ private:
 
     struct VulkanState
     {
+        vk::UniqueFence Fence;
         vk::UniqueCommandBuffer CommandBuffer;
 
         static constexpr size_t StagingBufferSize = 256 * 192 * sizeof(uint32_t);
