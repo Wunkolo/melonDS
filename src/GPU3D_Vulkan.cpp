@@ -24,65 +24,85 @@
 
 namespace GPU3D
 {
-	VulkanRenderer::VulkanRenderer()
-		: Renderer3D(false)
-	{
-		vk::InstanceCreateInfo InstanceCreateInfo = {};
+    VulkanRenderer::VulkanRenderer()
+        : Renderer3D(false)
+    {
+        vk::InstanceCreateInfo InstanceCreateInfo = {};
 
-		vk::ApplicationInfo ApplicationInfo = {};
-		ApplicationInfo.pApplicationName = "melonDS " MELONDS_VERSION;
-		ApplicationInfo.applicationVersion = VK_MAKE_VERSION(0, 0, 0);
-		ApplicationInfo.pEngineName = "melonDS " MELONDS_VERSION;
-		ApplicationInfo.engineVersion = VK_MAKE_VERSION(0, 0, 0);
-		ApplicationInfo.apiVersion = VK_VERSION_1_1;
+        vk::ApplicationInfo ApplicationInfo = {};
+        ApplicationInfo.pApplicationName = "melonDS " MELONDS_VERSION;
+        ApplicationInfo.applicationVersion = VK_MAKE_VERSION(0, 0, 0);
+        ApplicationInfo.pEngineName = "melonDS " MELONDS_VERSION;
+        ApplicationInfo.engineVersion = VK_MAKE_VERSION(0, 0, 0);
+        ApplicationInfo.apiVersion = VK_API_VERSION_1_2;
 
-		InstanceCreateInfo.pApplicationInfo = &ApplicationInfo;
+        InstanceCreateInfo.pApplicationInfo = &ApplicationInfo;
 
-		InstanceCreateInfo.enabledExtensionCount = 0;
-		InstanceCreateInfo.ppEnabledExtensionNames = nullptr;
+        // Instance validation layers
+        static const char* ValidationLayers[] = {
+        #ifndef NDEBUG
+            "VK_LAYER_KHRONOS_validation",
+            "VK_LAYER_LUNARG_api_dump"
+        #endif
+        };
+        InstanceCreateInfo.enabledLayerCount = std::extent_v<decltype(ValidationLayers)>;
+        InstanceCreateInfo.ppEnabledLayerNames = ValidationLayers;
 
-		InstanceCreateInfo.enabledLayerCount = 0;
-		InstanceCreateInfo.ppEnabledExtensionNames = nullptr;
+        // Instance extensions
+        InstanceCreateInfo.enabledExtensionCount = 0;
+        InstanceCreateInfo.ppEnabledExtensionNames = nullptr;
 
-		if (
-			auto InstanceResult = vk::createInstanceUnique(InstanceCreateInfo);
-			InstanceResult.result == vk::Result::eSuccess
-		)
-		{
-			Vk.Instance = std::move(InstanceResult.value);
-		}
-		else
-		{
-			// Failed to create instance
-		}
-	}
+        if (
+            auto InstanceResult = vk::createInstanceUnique(InstanceCreateInfo);
+            InstanceResult.result == vk::Result::eSuccess
+        )
+        {
+            Vk.Instance = std::move(InstanceResult.value);
+        }
+        else
+        {
+            // Failed to create instance
+        }
 
-	VulkanRenderer::~VulkanRenderer()
-	{
-	}
+        VULKAN_HPP_DEFAULT_DISPATCHER.init(Vk.Instance.get());
+        
+        puts("Vulkan CTOR");
+    }
+
+    VulkanRenderer::~VulkanRenderer()
+    {
+        puts("Vulkan DTOR");
+    }
 
     bool VulkanRenderer::Init()
     {
+        puts("Vulkan Renderer Init");
         return true;
     }
+
     void VulkanRenderer::DeInit()
     {
-
+        puts("Vulkan Renderer DeInit");
     }
+
     void VulkanRenderer::Reset()
     {
 
     }
+
     void VulkanRenderer::SetRenderSettings(GPU::RenderSettings& settings)
     {
 
     }
+
     void VulkanRenderer::RenderFrame()
     {
 
     }
+
     u32* VulkanRenderer::GetLine(int line)
     {
-        return nullptr;
+        static std::array<u32, 256> PlaceHolderScanline = {};
+        return PlaceHolderScanline.data();
     }
 }
