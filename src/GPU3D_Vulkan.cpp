@@ -459,18 +459,17 @@ namespace GPU3D
                 )
             }
         );
-
         // Clear framebuffer
         vk::ClearColorValue ClearColor = {};
         {
-            const u32 ClearR = (RenderClearAttr1 >>  0) & 0x1F;
-            const u32 ClearG = (RenderClearAttr1 >>  5) & 0x1F;
-            const u32 ClearB = (RenderClearAttr1 >> 10) & 0x1F;
-            const u32 ClearA = (RenderClearAttr1 >> 16) & 0x1F;
-            ClearColor.float32[0] = ClearR / float(31);
-            ClearColor.float32[1] = ClearG / float(31);
-            ClearColor.float32[2] = ClearB / float(31);
-            ClearColor.float32[3] = ClearA / float(31);
+            u32 ClearR = (RenderClearAttr1 >>  0) & 0x1F;
+            u32 ClearG = (RenderClearAttr1 >>  5) & 0x1F;
+            u32 ClearB = (RenderClearAttr1 >> 10) & 0x1F;
+            u32 ClearA = (RenderClearAttr1 >> 16) & 0x1F;
+            ClearColor.float32[0] = ClearR / float(0x1F);
+            ClearColor.float32[1] = ClearG / float(0x1F);
+            ClearColor.float32[2] = ClearB / float(0x1F);
+            ClearColor.float32[3] = ClearA / float(0x1F);
         }
 
         VkState.CommandBuffer->clearColorImage(
@@ -585,14 +584,12 @@ namespace GPU3D
 
     u32* VulkanRenderer::GetLine(int line)
     {
-        auto row = reinterpret_cast<u32*>(VkState.MappedStagingBuffer) + 256 * line;
-        u64* ptr = (u64*)row;
-        for (int i = 0; i < 256; i += 2)
+        u32* row = reinterpret_cast<u32*>(VkState.MappedStagingBuffer) + 256 * line;
+        // R8G8B8A8 to R5G5B5A5
+        for (size_t i = 0; i < 256; ++i)
         {
-            u64 rgb = *ptr & 0x00FCFCFC00FCFCFC;
-            u64 a = *ptr & 0xF8000000F8000000;
-
-            *ptr++ = (rgb >> 2) | (a >> 3);
+            row[i] &= 0b11111000'11111000'11111000'11111000;
+            row[i] >>= 2;
         }
         return row;
     }
