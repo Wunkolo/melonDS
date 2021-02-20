@@ -459,31 +459,46 @@ namespace GPU3D
                 )
             }
         );
-        // Clear framebuffer
-        vk::ClearColorValue ClearColor = {};
-        {
-            u32 ClearR = (RenderClearAttr1 >>  0) & 0x1F;
-            u32 ClearG = (RenderClearAttr1 >>  5) & 0x1F;
-            u32 ClearB = (RenderClearAttr1 >> 10) & 0x1F;
-            u32 ClearA = (RenderClearAttr1 >> 16) & 0x1F;
-            ClearColor.float32[0] = ClearR / float(0x1F);
-            ClearColor.float32[1] = ClearG / float(0x1F);
-            ClearColor.float32[2] = ClearB / float(0x1F);
-            ClearColor.float32[3] = ClearA / float(0x1F);
-        }
 
-        VkState.CommandBuffer->clearColorImage(
-            VkState.FrameColorImage.get(),
-            vk::ImageLayout::eGeneral,
-            ClearColor,
+        // Clear framebuffer
+        // Test DISP3DCNT register bit 14 for Rear-Plane mode
+        if (RenderDispCnt & (1<<14))
+        {
+            // Bitmap clear
+            // Texture slot 2 and 3 are used as 256x2566 bitmap textures
+            // that are blit into the rear-plane of the depth and depth/fog buffer
+            const u8 xoff = (RenderClearAttr2 >> 16) & 0xFF;
+            const u8 yoff = (RenderClearAttr2 >> 24) & 0xFF;
+            // Todo
+        }
+        else
+        {
+            // Simple clear
+            vk::ClearColorValue ClearColor = {};
             {
-                vk::ImageSubresourceRange(
-                    vk::ImageAspectFlagBits::eColor,
-                    0, VK_REMAINING_MIP_LEVELS,
-                    0, VK_REMAINING_ARRAY_LAYERS
-                )
+                u32 ClearR = (RenderClearAttr1 >>  0) & 0x1F;
+                u32 ClearG = (RenderClearAttr1 >>  5) & 0x1F;
+                u32 ClearB = (RenderClearAttr1 >> 10) & 0x1F;
+                u32 ClearA = (RenderClearAttr1 >> 16) & 0x1F;
+                ClearColor.float32[0] = ClearR / float(0x1F);
+                ClearColor.float32[1] = ClearG / float(0x1F);
+                ClearColor.float32[2] = ClearB / float(0x1F);
+                ClearColor.float32[3] = ClearA / float(0x1F);
             }
-        );
+
+            VkState.CommandBuffer->clearColorImage(
+                VkState.FrameColorImage.get(),
+                vk::ImageLayout::eGeneral,
+                ClearColor,
+                {
+                    vk::ImageSubresourceRange(
+                        vk::ImageAspectFlagBits::eColor,
+                        0, VK_REMAINING_MIP_LEVELS,
+                        0, VK_REMAINING_ARRAY_LAYERS
+                    )
+                }
+            );
+        }
 
         // Transition to read
         VkState.CommandBuffer->pipelineBarrier(
