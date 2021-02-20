@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include <array>
+
 #include "GPU3D.h"
 #include "Platform.h"
 
@@ -40,12 +42,29 @@ public:
     virtual void RenderFrame() override;
     virtual u32* GetLine(int line) override;
 private:
-    struct VulkanState
+    struct VulkanContext
     {
         vk::UniqueInstance Instance;
         vk::PhysicalDevice PhysicalDevice;
         vk::UniqueDevice Device;
         vk::Queue Queue;
-    } Vk;
+    } VkContext;
+
+    struct VulkanState
+    {
+        static constexpr size_t StagingBufferSize = 1024 * 1024 * 1;
+        vk::UniqueDeviceMemory StagingBufferMemory;
+        vk::UniqueBuffer StagingBuffer;+
+
+        std::byte* MappedStagingBuffer;
+        size_t StagingBufferWritePoint;
+
+        vk::UniqueDeviceMemory FrameColorMemory;
+        vk::UniqueImage FrameColorImage;
+
+        vk::UniqueDeviceMemory FrameDepthStencilMemory;
+        vk::UniqueImage FrameDepthStencilImage;
+    } VkState;
+
 };
 }

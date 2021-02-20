@@ -38,4 +38,11 @@ enum class VendorID : u32
 };
 
 const char* VendorName(VendorID Vendor);
+
+int32_t FindMemoryTypeIndex(
+    const vk::PhysicalDevice& PhysicalDevice,
+    uint32_t MemoryTypeMask,
+    vk::MemoryPropertyFlags Properties,
+    vk::MemoryPropertyFlags ExcludeProperties = vk::MemoryPropertyFlagBits::eProtected
+);
 }

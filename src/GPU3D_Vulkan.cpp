@@ -60,21 +60,21 @@ namespace GPU3D
             InstanceResult.result == vk::Result::eSuccess
         )
         {
-            Vk.Instance = std::move(InstanceResult.value);
+            VkContext.Instance = std::move(InstanceResult.value);
         }
         else
         {
             // Failed to create instance
         }
 
-        VULKAN_HPP_DEFAULT_DISPATCHER.init(Vk.Instance.get());
+        VULKAN_HPP_DEFAULT_DISPATCHER.init(VkContext.Instance.get());
         
         //// Pick physical device
         // Todo: Make this something the user selects
         std::vector<vk::PhysicalDevice> PhysicalDevices = {};
 
         if (
-            auto EnumerateResult = Vk.Instance->enumeratePhysicalDevices();
+            auto EnumerateResult = VkContext.Instance->enumeratePhysicalDevices();
             EnumerateResult.result == vk::Result::eSuccess
         )
         {
@@ -110,7 +110,7 @@ namespace GPU3D
         );
 
         // At this point, the devices are now sorted from best to worst based on our criteria above
-        Vk.PhysicalDevice = PhysicalDevices[0];
+        VkContext.PhysicalDevice = PhysicalDevices[0];
 
         //// Create device
         vk::DeviceCreateInfo DeviceInfo = {};
@@ -140,20 +140,20 @@ namespace GPU3D
         DeviceInfo.pQueueCreateInfos = &QueueInfo;
 
         if (
-            auto DeviceResult = Vk.PhysicalDevice.createDeviceUnique(DeviceInfo);
+            auto DeviceResult = VkContext.PhysicalDevice.createDeviceUnique(DeviceInfo);
             DeviceResult.result == vk::Result::eSuccess
         )
         {
-            Vk.Device = std::move(DeviceResult.value);
+            VkContext.Device = std::move(DeviceResult.value);
         }
         else
         {
             // Error creating Logical device
         }
 
-        Vk.Queue = Vk.Device->getQueue(0, 0);
+        VkContext.Queue = VkContext.Device->getQueue(0, 0);
 
-        const vk::PhysicalDeviceProperties DeviceProperties = Vk.PhysicalDevice.getProperties();
+        const vk::PhysicalDeviceProperties DeviceProperties = VkContext.PhysicalDevice.getProperties();
         printf(
             "Vulkan Context created:\n"
             "\tDevice: %.256s\n"
@@ -182,12 +182,99 @@ namespace GPU3D
 
     bool VulkanRenderer::Init()
     {
+        //// Create staging buffer
+        {
+            vk::BufferCreateInfo StagingBufferInfo = {};
+            StagingBufferInfo.size = VulkanState::StagingBufferSize;
+            StagingBufferInfo.usage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eTransferSrc;
+            StagingBufferInfo.sharingMode = vk::SharingMode::eExclusive;
+
+            if(
+                auto BufferResult = VkContext.Device->createBufferUnique(StagingBufferInfo);
+                BufferResult.result == vk::Result::eSuccess
+            )
+            {
+                VkState.StagingBuffer = std::move(BufferResult.value);
+            }
+            else
+            {
+                // Error creating staging buffer
+                return false;
+            }
+        }
+
+        //// Allocate Staging buffer
+        {
+            const vk::MemoryRequirements MemoryRequirements = VkContext.Device->getBufferMemoryRequirements(
+                VkState.StagingBuffer.get()
+            );
+            const int32_t BufferMemoryIndex = Vulkan::FindMemoryTypeIndex(
+                VkContext.PhysicalDevice,
+                MemoryRequirements.memoryTypeBits,
+                vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
+            );
+
+            if (BufferMemoryIndex < 0)
+            {
+                // Unable to find a suitable memory index for this buffer
+                return false;
+            }
+
+            vk::MemoryAllocateInfo AllocationInfo = {};
+            AllocationInfo.allocationSize = MemoryRequirements.size;
+            AllocationInfo.memoryTypeIndex = BufferMemoryIndex;
+
+            if(
+                auto AllocationResult = VkContext.Device->allocateMemoryUnique(AllocationInfo);
+                AllocationResult.result == vk::Result::eSuccess
+            )
+            {
+                VkState.StagingBufferMemory = std::move(AllocationResult.value);
+            }
+            else
+            {
+                // Failed to allocate staging memory
+                return false;
+            }
+
+            // Bind Buffer to memory
+
+            if(
+                auto BindResult = VkContext.Device->bindBufferMemory(VkState.StagingBuffer.get(), VkState.StagingBufferMemory.get(), 0);
+                BindResult == vk::Result::eSuccess
+            )
+            {
+                // Successfully binded buffer to memory
+            }
+            else
+            {
+                // Error binding staging buffer to staging memory
+                return false;
+            }
+        }
+
+        // Map staging buffer to host-visible pointer
+        if(
+            auto MapResult = VkContext.Device->mapMemory(VkState.StagingBufferMemory.get(), 0, VK_WHOLE_SIZE);
+            MapResult.result == vk::Result::eSuccess
+        )
+        {
+            VkState.MappedStagingBuffer = reinterpret_cast<decltype(VkState.MappedStagingBuffer)>(MapResult.value);
+        }
+        else
+        {
+            // Error mapping staging buffer
+            return false;
+        }
+
         puts("Vulkan Renderer Init");
+
         return true;
     }
 
     void VulkanRenderer::DeInit()
     {
+        VkState = std::move(VulkanState{});
         puts("Vulkan Renderer DeInit");
     }
 
