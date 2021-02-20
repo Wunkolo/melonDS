@@ -211,7 +211,9 @@ namespace GPU3D
             const int32_t BufferMemoryIndex = Vulkan::FindMemoryTypeIndex(
                 VkContext.PhysicalDevice,
                 MemoryRequirements.memoryTypeBits,
-                vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
+                vk::MemoryPropertyFlagBits::eHostVisible |
+                vk::MemoryPropertyFlagBits::eHostCoherent |
+                vk::MemoryPropertyFlagBits::eHostCached
             );
 
             if (BufferMemoryIndex < 0)
@@ -267,6 +269,89 @@ namespace GPU3D
             return false;
         }
 
+        //// Create main framebuffer
+        {
+            vk::ImageCreateInfo FrameColorInfo = {};
+            FrameColorInfo.imageType = vk::ImageType::e2D;
+            FrameColorInfo.format = vk::Format::eR8G8B8A8Unorm;
+            FrameColorInfo.extent.width = 256;
+            FrameColorInfo.extent.height = 192;
+            FrameColorInfo.extent.depth = 1;
+            FrameColorInfo.mipLevels = 1;
+            FrameColorInfo.arrayLayers = 1;
+            FrameColorInfo.samples = vk::SampleCountFlagBits::e1;
+            FrameColorInfo.tiling = vk::ImageTiling::eOptimal;
+            FrameColorInfo.initialLayout = vk::ImageLayout::eUndefined;
+            FrameColorInfo.sharingMode = vk::SharingMode::eExclusive;
+            FrameColorInfo.usage =
+                vk::ImageUsageFlagBits::eTransferDst |
+                vk::ImageUsageFlagBits::eTransferSrc |
+                vk::ImageUsageFlagBits::eColorAttachment;
+
+            if(
+                auto ImageResult = VkContext.Device->createImageUnique(FrameColorInfo);
+                ImageResult.result == vk::Result::eSuccess
+            )
+            {
+                VkState.FrameColorImage = std::move(ImageResult.value);
+            }
+            else
+            {
+                // Error creating color framebuffer
+                return false;
+            }
+        }
+
+        // Allocate main framebuffer image memory
+        {
+            const vk::MemoryRequirements MemoryRequirements = VkContext.Device->getImageMemoryRequirements(
+                VkState.FrameColorImage.get()
+            );
+            const int32_t ImageMemoryIndex = Vulkan::FindMemoryTypeIndex(
+                VkContext.PhysicalDevice,
+                MemoryRequirements.memoryTypeBits,
+                vk::MemoryPropertyFlagBits::eDeviceLocal
+            );
+
+            if (ImageMemoryIndex < 0)
+            {
+                // Unable to find a suitable memory index for this buffer
+                return false;
+            }
+
+            vk::MemoryAllocateInfo AllocationInfo = {};
+            AllocationInfo.allocationSize = MemoryRequirements.size;
+            AllocationInfo.memoryTypeIndex = ImageMemoryIndex;
+
+            if(
+                auto AllocationResult = VkContext.Device->allocateMemoryUnique(AllocationInfo);
+                AllocationResult.result == vk::Result::eSuccess
+            )
+            {
+                VkState.FrameColorMemory = std::move(AllocationResult.value);
+            }
+            else
+            {
+                // Failed to allocate staging memory
+                return false;
+            }
+
+            // Bind Image to memory
+
+            if(
+                auto BindResult = VkContext.Device->bindImageMemory(VkState.FrameColorImage.get(), VkState.FrameColorMemory.get(), 0);
+                BindResult == vk::Result::eSuccess
+            )
+            {
+                // Successfully binded frame color image to memory
+            }
+            else
+            {
+                // Error binding frame color image to staging memory
+                return false;
+            }
+        }
+
         puts("Vulkan Renderer Init");
 
         return true;
@@ -295,7 +380,6 @@ namespace GPU3D
 
     u32* VulkanRenderer::GetLine(int line)
     {
-        static std::array<u32, 256> PlaceHolderScanline = {};
-        return PlaceHolderScanline.data();
+        return reinterpret_cast<u32*>(VkState.MappedStagingBuffer) + 256 * line;
     }
 }

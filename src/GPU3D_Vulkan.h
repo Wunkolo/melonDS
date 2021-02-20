@@ -52,9 +52,9 @@ private:
 
     struct VulkanState
     {
-        static constexpr size_t StagingBufferSize = 1024 * 1024 * 1;
+        static constexpr size_t StagingBufferSize = 256 * 192 * sizeof(uint32_t);
         vk::UniqueDeviceMemory StagingBufferMemory;
-        vk::UniqueBuffer StagingBuffer;+
+        vk::UniqueBuffer StagingBuffer;
 
         std::byte* MappedStagingBuffer;
         size_t StagingBufferWritePoint;
